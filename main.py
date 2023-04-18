@@ -1,17 +1,39 @@
+import configparser
+import pickle
+
 import discord
-from dotenv import load_dotenv
 import os
 
-intents = discord.Intents.default()
-bot = discord.Bot(intents = intents)
+CONFIG = 'config.ini'
+parser = configparser.ConfigParser()
+try:
+    parser.read(CONFIG)
+    TOKEN = str(parser['DISCORD']['token'])
+except:
+    TOKEN = str(os.environ['token'])
+
+
+intents = discord.Intents.all()
+
+bot = discord.Bot(case_insensitive=True,
+                      description="Simple betting bot to gamble on the outcome of admin created events.")  # , intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} is online.")
+    print('Connected to bot: {}'.format(bot.user.name))
+    print('Bot ID: {}'.format(bot.user.id))
 
-@bot.slash_command(name = "ping", description = "Check the bots ping")
-async def ping(ctx):
-    await ctx.respond(f"{bot.latency * 1000}ms")
+initial_extensions = (
+    'betting',
+)
 
-load_dotenv()
-bot.run(os.getenv("TOKEN"))
+for extension in initial_extensions:
+  try:
+    bot.load_extension(extension)
+  except Exception as e:
+    print(f'Failed to load extension {extension}.')
+
+
+
+
+bot.run(TOKEN)

@@ -1,13 +1,14 @@
 # Imports
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import configparser
-from datetime import datetime, timedelta
-from pytz import timezone
+from datetime import timedelta, date, datetime
 
 import pickle
 import os
+
+from discord.ui import View
 
 ################################################
 # Setup
@@ -17,13 +18,11 @@ parser = configparser.ConfigParser()
 try:
     parser.read(CONFIG)
     TOKEN = str(parser['DISCORD']['token'])
-    PREFIX = str(parser['DISCORD']['prefix'])
     TIMEZONE = str(parser['DISCORD']['timezone'])
     DAILY = int(parser['DISCORD']['daily'])
     STARTING_MONEY = int(parser['DISCORD']['starting_money'])
 except:
     TOKEN = str(os.environ['token'])
-    PREFIX = str(os.environ['prefix'])
     TIMEZONE = str(os.environ['timezone'])
     DAILY = int(os.environ['daily'])
     STARTING_MONEY = int(os.environ['starting_money'])
@@ -52,10 +51,13 @@ class BettingSystem():
         return "Cleared all historical data. PnL and money remains."
 
     def add_event(self, team1, team2, odds=2.00):
+        a = datetime.now()
+        b = a + timedelta(hours=1)
         event = BetEvent(self.next_event_id(), team1, team2, odds, description=team1 + " VS " + team2)
         self._curr_events[event._id] = event
-        embed = discord.Embed(title=event.information(), description=f"ID: {str(event._id)}", color=0x00008b)
-        return embed
+        embed = discord.Embed(title=event.information(), description=f"ID: {str(event._id)}",timestamp=b, color=0x00008b)
+        embed.set_footer(text="\u200b Ending: ")
+        return event._id, embed
 
     def resolve_event(self, event_id, result):
         if not (event_id in self._curr_events):
@@ -148,7 +150,6 @@ class BettingSystem():
 
         if team != self._curr_events[event_id]._team1 and team != self._curr_events[event_id]._team2:
             return person.name() + " " + self._invalid_side_message
-
 
         return self._curr_events[event_id].add_bet(person, amount, team)
 
@@ -334,7 +335,7 @@ class BetEvent():
         print(winning_side)
 
         for bet in self._bets:
-            bet.resolve(winning_side, self.odds(bet.side())-1)
+            bet.resolve(winning_side, self.odds(bet.side()))
             bet.user().archive_bet(bet._underlying._id)
 
     def resolved(self):
@@ -441,209 +442,253 @@ class Bet():
         return self._underlying
 
 
+class MyModal(discord.ui.Modal):
+    def __init__(self, team,id,betting_system, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.add_item(discord.ui.InputText(label="Bet Amount", placeholder="0.00"))
+        self.result = team
+        self.id = id
+        self.betting_system = betting_system
+
+
+    async def callback(self, interaction: discord.Interaction):
+        #await interaction.response(wrap(self.bot.system.user_bet(int(self.event_id), interaction.user, self.result, float(self.children[0].value))), ephemeral=True)
+        #await interaction.response.send_message(f"you bet ${self.children[0].value}", ephemeral=True)
+        #await interaction.response.send_message(BettingSystem.user_bet(int(self.id), interaction.user, self.result, float(self.children[0].value)), ephemeral=True)
+        result = self.betting_system.user_bet(self.id, interaction.user, self.result, float(self.children[0].value))
+        await interaction.response.send_message(result, ephemeral=True)
+
 # wraps the text in ```<text>``` for ascii table output
 def wrap(text):
     return "```" + text + "```"
 
-
-################################################
-
-# intents - todo
-# intents = discord.Intents.none()
-# intents.messages = True
-# intents.members = True
-# reactions
-
-help_command = commands.DefaultHelpCommand(
-    no_category='Commands'
-)
-client = commands.Bot(case_insensitive=True, command_prefix=commands.when_mentioned_or(PREFIX),
-                      description="Simple betting bot to gamble on the outcome of admin created events.",
-                      help_command=help_command)  # , intents=intents)
-
-#### PICKLE (object persistence)
 PICKLE_FILENAME = 'betting_system.pickle'
-try:
-    with open(PICKLE_FILENAME, 'rb') as handle:
-        client.system = pickle.load(handle)
-    print("Successfully loaded " + PICKLE_FILENAME)
-except:
-    print("Couldn't find pickle file " + PICKLE_FILENAME)
-    client.system = BettingSystem()
+class betting(commands.Cog):
+    def __init__(self, bot):
+      self.bot = bot
+      self.autosave.start()
+      #### PICKLE (object persistence)
+      try:
+          with open(PICKLE_FILENAME, 'rb') as handle:
+              bot.system = pickle.load(handle)
+          print("Successfully loaded " + PICKLE_FILENAME)
+      except:
+          print("Couldn't find pickle file " + PICKLE_FILENAME)
+          bot.system = BettingSystem()
 
 
-# Startup Information
-@client.event
-async def on_ready():
-    print('Connected to bot: {}'.format(client.user.name))
-    print('Bot ID: {}'.format(client.user.id))
+    def getEmoji(self,team):
+        team = team.lower()
+        if team == "outlaws":
+            return "<:VAN:1097742618441560075>"
+        if team == "highlanders":
+            return "<:HFX:1097742653103288430>"
+        if team == "blues":
+            return "<:SAS:1097742592814362664>"
+        if team == "whalers":
+            return "<:HFD:1097742654151868587>"
+        if team == "rage":
+            return "<:CAS:1097742655837974580>"
+        if team == "grizzlies":
+            return "<:ANC:1097742565190668338>"
+        return "fuck if i know"
+    
+    ################################################
+    # BETTING
+    
+    # Create event
+    """@discord.slash_command(aliases=["g"], usage="<odds> <team1> <team2>",
+                    help="Allows a Manager to create an event for users to bet on.\ne.g. game 2 outlaws highlanders")
+    @commands.has_role("Manager")
+    async def game(self,ctx, odds, team1,team2):
+        await ctx.respond(embed=self.bot.system.add_event(team1,team2, float(odds)))"""
+
+    @discord.slash_command(aliases=["g"], usage="<odds> <team1> <team2>",
+                           help="Allows a Manager to create an event for users to bet on.\ne.g. game 2 outlaws highlanders")
+    @commands.has_role("Manager")
+    async def game(self, ctx, odds, team1, team2):
 
 
-################################################
-# BETTING
+        temp = self.bot.system.add_event(team1, team2, float(odds))
+        id = temp[0]
+        send = temp[1]
 
-# Create event
-@client.slash_command(aliases=["e"], usage="<odds> <team1> <team2>",
-                help="Allows a Manager to create an event for users to bet on.\ne.g. event 2 outlaws highlanders")
-@commands.has_role("Manager")
-async def event(ctx, odds, team1,team2):
-    await ctx.respond(embed=client.system.add_event(team1,team2, float(odds)))
+        button1 = discord.ui.Button(custom_id=f"button-1-{id}", style=discord.ButtonStyle.primary,
+                                    emoji=self.getEmoji(team1))
+        button2 = discord.ui.Button(custom_id=f"button-2-{id}", style=discord.ButtonStyle.primary,
+                                    emoji=self.getEmoji(team2))
 
+        async def on_timeout():
+            await ctx.respond("You didn't bet in time!", ephermal=True)
 
-# Resolve event
-@client.slash_command(aliases=["r"], usage="<eventId> <result",
-                help="Allows a Manager to resolve an event that users have bet on.\ne.g. resolve 1 outlaws")
-@commands.has_role("Manager")
-async def resolve(ctx, event_id, result):
-    await ctx.respond(client.system.resolve_event(int(event_id), result))
+        view = View(timeout=3600)
+        view.add_item(button1)
+        view.add_item(button2)
 
+        await ctx.respond(embed=send,view=view)
+        async def callback1(interaction):
+            self.team = team1
+            await interaction.response.send_modal(MyModal(title="betting", team=team1, id=id,betting_system=self.bot.system))
+        async def callback2(interaction):
+            self.team = team2
+            await interaction.response.send_modal(MyModal(title="betting",team=team2, id=id,betting_system=self.bot.system))
 
-# Bet on an event
-@client.slash_command(aliases=["b"], usage="<eventId> <result (yes/no)> <amount>",
-                help="Allows any user to bet on an ongoing event.\ne.g. bet 1 y 100.")
-async def bet(ctx, event_id, result, amount):
-    await ctx.respond(wrap(client.system.user_bet(int(event_id), ctx.author, result, float(amount))))
+        button1.callback = callback1
+        button2.callback = callback2
 
-
-# Lock an event
-@client.slash_command(aliases=["lo"], usage="<eventId>", help="Allows a Manager to lock a current event.\ne.g. lock 11.")
-@commands.has_role("Manager")
-async def lock(ctx, event_id):
-    await ctx.respond(wrap(client.system.lock_event(int(event_id))))
-
-
-# Unlock an event
-@client.slash_command(aliases=["unlo"], usage="<eventId>",
-                help="Allows a Manager to unlock a current event.\ne.g. unlock 11.")
-@commands.has_role("Manager")
-async def unlock(ctx, event_id):
-    await ctx.respond(wrap(client.system.unlock_event(int(event_id))))
-
-
-################################################
-# See current money
-@client.slash_command(aliases=["m"], usage="", help="Allows any user to see their current money supply.")
-async def money(ctx):
-    await ctx.respond(wrap(client.system.print_money(ctx.author)))
-
-
-# Get daily money reward
-@client.slash_command(aliases=["d"], usage="", help="Retrieve daily login reward.")
-async def daily(ctx):
-    await ctx.respond(wrap(client.system.daily(ctx.author)))
-
-
-################################################
-# System information
-
-# list all ongoing events
-@client.slash_command(aliases=["list", "o", "on", "live"], usage="", help="Allows any user to see all live events and bets.")
-async def ongoing(ctx):
-    await ctx.respond(wrap(client.system.list_current_events()))
-
-
-# list all past events
-@client.slash_command(aliases=["pastevents", "past", "all"], usage="",
-                help="Allows any user to see all past events and bets.")
-async def allhistory(ctx):
-    await ctx.respond(wrap(client.system.list_past_events()))
-
-
-# list a users current bets
-@client.slash_command(aliases=["bs"], usage="", help="Allows any user to see their current bets.")
-async def bets(ctx):
-    await ctx.respond(wrap(client.system.list_user_bets(ctx.author)))
-
-
-# cancel a user's current bets for a particular event
-@client.slash_command(aliases=["can"], usage="<@user> <event_id>", help="Allows a Manager to cancel someone's bets.")
-@commands.has_role("Manager")
-async def cancel(ctx, user, event_id):
-    user = user.replace('<', '').replace('>', '').replace('@', '')
-    await ctx.respond(wrap(client.system.cancel_bet(int(user), int(event_id))))
-
-
-# A user's betting history
-@client.slash_command(aliases=["h", "hist"], usage="", help="Allows any user to see their past betting history.")
-async def history(ctx):
-    await ctx.respond(client.system.list_user_past_bets(ctx.author))
-
-
-# Leaderboard ranked by money
-@client.slash_command(aliases=["top", "leader", "l"], usage="", help="Ranks everyone by money.")
-async def leaderboard(ctx):
-    await ctx.respond(wrap(client.system.list_money_leaderboard()))
-
-
-# Leaderboard ranked by PnL
-@client.slash_command(aliases=["allpnl", "pnl", "p"], usage="", help="Ranks everyone by profit/loss.")
-async def bestpnl(ctx):
-    await ctx.respond(wrap(client.system.list_best_pnl()))
-
-
-# Store all user data (serialized)
-@client.slash_command(aliases=["s", "shutdown"], usage="", help="Save current system state to file.")
-async def save(ctx):
-    with open(PICKLE_FILENAME, 'wb') as handle:
-        pickle.dump(client.system, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    await ctx.respond(wrap("Data saved successfully."))
-    with open(PICKLE_FILENAME, 'rb') as handle:
-        await ctx.respond(file=discord.File(handle))
-
-
-# Load user data (serialized)
-@client.slash_command(aliases=["reload"], usage="",
-                help="Load current system state from file. Must be attached with the command and named " + PICKLE_FILENAME + ".")
-@commands.has_role("Manager")
-async def load(ctx):
-    if not (ctx.message.attachments):
-        await ctx.respond(wrap(ctx.author.display_name + " loading requires an attachment."))
-        return
-    for attachment in ctx.message.attachments:
-        if attachment.filename == PICKLE_FILENAME:
-            file_bytes = await attachment.read()
-            client.system = pickle.loads(file_bytes)
-            await ctx.respond(wrap("file loaded successfully."))
+    
+    
+    # Resolve event
+    @discord.slash_command(aliases=["r"], usage="<eventId> <result",
+                    help="Allows a Manager to resolve an event that users have bet on.\ne.g. resolve 1 outlaws")
+    @commands.has_role("Manager")
+    async def resolve(self, ctx, event_id, result):
+        await ctx.respond(self.bot.system.resolve_event(int(event_id), result))
+    
+    
+    # Bet on an event
+    @discord.slash_command(aliases=["b"], usage="<eventId> <result (yes/no)> <amount>",
+                    help="Allows any user to bet on an ongoing event.\ne.g. bet 1 y 100.")
+    async def bet(self, ctx, event_id, result, amount):
+        await ctx.respond(wrap(self.bot.system.user_bet(int(event_id), ctx.author, result, float(amount))),ephemeral=True)
+    
+    
+    # Lock an event
+    @discord.slash_command(aliases=["lo"], usage="<eventId>", help="Allows a Manager to lock a current event.\ne.g. lock 11.")
+    @commands.has_role("Manager")
+    async def lock(self, ctx, event_id):
+        await ctx.respond(wrap(discord.system.lock_event(int(event_id))))
+    
+    
+    # Unlock an event
+    @discord.slash_command(aliases=["unlo"], usage="<eventId>",
+                    help="Allows a Manager to unlock a current event.\ne.g. unlock 11.")
+    @commands.has_role("Manager")
+    async def unlock(self, ctx, event_id):
+        await ctx.respond(wrap(self.bot.system.unlock_event(int(event_id))))
+    
+    
+    ################################################
+    # See current money
+    @discord.slash_command(aliases=["m"], usage="", help="Allows any user to see their current money supply.")
+    async def money(self, ctx):
+        await ctx.respond(wrap(self.bot.system.print_money(ctx.author)))
+    
+    
+    # Get daily money reward
+    @discord.slash_command(aliases=["d"], usage="", help="Retrieve daily login reward.")
+    async def daily(self, ctx):
+        await ctx.respond(wrap(self.bot.system.daily(ctx.author)))
+    
+    
+    ################################################
+    # System information
+    
+    # list all ongoing events
+    @discord.slash_command(aliases=["list", "o", "on", "live"], usage="", help="Allows any user to see all live events and bets.")
+    async def ongoing(self, ctx):
+        await ctx.respond(wrap(self.bot.system.list_current_events()))
+    
+    
+    # list all past events
+    @discord.slash_command(aliases=["pastevents", "past", "all"], usage="",
+                    help="Allows any user to see all past events and bets.")
+    async def allhistory(self, ctx):
+        await ctx.respond(wrap(self.bot.system.list_past_events()))
+    
+    
+    # list a users current bets
+    @discord.slash_command(aliases=["bs"], usage="", help="Allows any user to see their current bets.")
+    async def bets(self, ctx):
+        await ctx.respond(wrap(self.bot.system.list_user_bets(ctx.author)))
+    
+    
+    # cancel a user's current bets for a particular event
+    @discord.slash_command(aliases=["can"], usage="<@user> <event_id>", help="Allows a Manager to cancel someone's bets.")
+    @commands.has_role("Manager")
+    async def cancel(self, ctx, user, event_id):
+        user = user.replace('<', '').replace('>', '').replace('@', '')
+        await ctx.respond(wrap(self.bot.system.cancel_bet(int(user), int(event_id))))
+    
+    
+    # A user's betting history
+    @discord.slash_command(aliases=["h", "hist"], usage="", help="Allows any user to see their past betting history.")
+    async def history(self, ctx):
+        await ctx.respond(self.bot.system.list_user_past_bets(ctx.author))
+    
+    
+    # Leaderboard ranked by money
+    @discord.slash_command(aliases=["top", "leader", "l"], usage="", help="Ranks everyone by money.")
+    async def leaderboard(self, ctx):
+        await ctx.respond(wrap(self.bot.system.list_money_leaderboard()))
+    
+    
+    # Leaderboard ranked by PnL
+    @discord.slash_command(aliases=["allpnl", "pnl", "p"], usage="", help="Ranks everyone by profit/loss.")
+    async def bestpnl(self, ctx):
+        await ctx.respond(wrap(self.bot.system.list_best_pnl()))
+    
+    
+    # Store all user data (serialized)
+    @discord.slash_command(aliases=["s", "shutdown"], usage="", help="Save current system state to file.")
+    async def save(self, ctx):
+        with open(PICKLE_FILENAME, 'wb') as handle:
+            pickle.dump(self.bot.system, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        await ctx.respond(wrap("Data saved successfully."))
+        with open(PICKLE_FILENAME, 'rb') as handle:
+            await ctx.respond(file=discord.File(handle))
+    
+    
+    # Load user data (serialized)
+    @discord.slash_command(aliases=["reload"], usage="",
+                    help="Load current system state from file. Must be attached with the command and named " + PICKLE_FILENAME + ".")
+    @commands.has_role("Manager")
+    async def load(self, ctx):
+        if not (ctx.message.attachments):
+            await ctx.respond(wrap(ctx.author.display_name + " loading requires an attachment."))
             return
+        for attachment in ctx.message.attachments:
+            if attachment.filename == PICKLE_FILENAME:
+                file_bytes = await attachment.read()
+                self.bot.system = pickle.loads(file_bytes)
+                await ctx.respond(wrap("file loaded successfully."))
+                return
+    
+    
+    @discord.slash_command(aliases=["latency"], usage="", help="Show self.bot latency.")
+    async def ping(self, ctx):
+        await ctx.respond(wrap(str(round(self.bot.latency * 1000, 2)) + "ms"))
+    
+    
+    
+    # renaming users
+    @discord.slash_command(usage="", help="Regenerate a users' name (using their current display name).")
+    async def rename(self, ctx):
+        await ctx.respond(wrap(self.bot.system.rename_user(ctx.author)))
+    
+    
+    # Update max bet
+    @discord.slash_command(aliases=["max"], usage="<eventId>", help="Allows a Manager to update the maximum betting amount.")
+    @commands.has_role("Manager")
+    async def max_bet(self, ctx, maxbet):
+        await ctx.respond(wrap(self.bot.system.update_max_bet(int(maxbet))))
+    
+    
+    # Clear history
+    @discord.slash_command(aliases=["clear_past"], usage="",
+                    help="Allows a Manager to clear past events (lowers save space).")
+    @commands.has_role("Manager")
+    async def clear(self, ctx):
+        await ctx.respond(wrap(self.bot.system.clear()))
 
+    @tasks.loop(hours=24)
+    async def autosave(self):
+        await self.bot.wait_until_ready()
+        channel = self.bot.get_channel(1097702157966393404)
+        with open(PICKLE_FILENAME, 'wb') as handle:
+            pickle.dump(self.bot.system, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(PICKLE_FILENAME, 'rb') as handle:
+            await channel.send(datetime.now(),file=discord.File(handle))
 
-@client.slash_command(aliases=["latency"], usage="", help="Show bot latency.")
-async def ping(ctx):
-    await ctx.respond(wrap(str(round(client.latency * 1000, 2)) + "ms"))
-
-
-# test
-@client.slash_command(usage="", help="When you're mad.")
-async def rage(ctx):
-    await ctx.respond(wrap('Sucks to suck idiot'))
-
-
-# renaming users
-@client.slash_command(usage="", help="Regenerate a users' name (using their current display name).")
-async def rename(ctx):
-    await ctx.respond(wrap(client.system.rename_user(ctx.author)))
-
-
-# Features
-@client.slash_command(usage="", help="Upcoming features.")
-async def features(ctx):
-    await ctx.respond(wrap(
-        "Integrate with lolesports and sportsbet apis to automatically generate and resolve events.\nAdd ~locktime command to lock an event after x hours."))
-
-
-# Update max bet
-@client.slash_command(aliases=["max"], usage="<eventId>", help="Allows a Manager to update the maximum betting amount.")
-@commands.has_role("Manager")
-async def max_bet(ctx, maxbet):
-    await ctx.respond(wrap(client.system.update_max_bet(int(maxbet))))
-
-
-# Clear history
-@client.slash_command(aliases=["clear_past"], usage="",
-                help="Allows a Manager to clear past events (lowers save space).")
-@commands.has_role("Manager")
-async def clear(ctx):
-    await ctx.respond(wrap(client.system.clear()))
-
-
-client.run(TOKEN)
+def setup(bot):
+    bot.add_cog(betting(bot))
