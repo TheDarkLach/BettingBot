@@ -1,6 +1,6 @@
 import configparser
 import pickle
-
+import events
 import discord
 import os
 
@@ -26,6 +26,7 @@ async def on_ready():
 initial_extensions = (
     'betting',
     "signing",
+   # "events",
 )
 
 for extension in initial_extensions:
@@ -33,7 +34,6 @@ for extension in initial_extensions:
     bot.load_extension(extension)
   except Exception as e:
     print(f'Failed to load extension {extension}.')
-
 
 
 

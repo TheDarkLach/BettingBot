@@ -1,5 +1,8 @@
 # Imports
+import asyncio
+
 import discord
+import pytz
 from discord.ext import commands, tasks
 
 import configparser
@@ -218,6 +221,7 @@ def custom_format(td):
 
 
 class User():
+    _users = []
     def __init__(self, name, userId):
         self._id = userId
         self._name = name
@@ -226,9 +230,18 @@ class User():
         self._past_bets = []
         self._daily = self._today() - timedelta(days=1)
         self._total_pnl = 0
+        User._users.append(self)
+
+    @classmethod
+    def get_user(cls, userId):
+        for user in cls._users:
+            if user._id == userId:
+                return user
+        return None
 
     def name(self):
         return self._name
+
 
     def rename(self, name):
         self._name = name
@@ -248,6 +261,7 @@ class User():
 
     def print_money(self):
         return self.name() + " has " + "$" + "{:.2f}".format(self.money()) + "."
+
 
     def list_bets(self):
         neg = ""
@@ -292,17 +306,20 @@ class User():
         self._daily = self._today()
         return self.name() + " gained ${:.2f}".format(abs(DAILY))
 
+    def addMoney(self):
+        self._money += 20
+
     def has_money(self, amount):
         return self._money >= amount
 
     def win_bet(self, amount, teamtotal, total):
         # amount is original bet amount, we should pass in team amount and total amount too and do math
-        print(f"amount bet: {amount}")
+        #print(f"amount bet: {amount}")
         teamperc = float(teamtotal / amount)
-        print(teamtotal, total)
-        print(teamperc, amount)
+        #print(teamtotal, total)
+        #print(teamperc, amount)
         amount = int(total / teamperc)
-        print(amount)
+        #print(amount)
 
         # print(teamperc, amount)
         self._money += amount
@@ -339,11 +356,11 @@ class BetEvent():
         if side == self._team1:
             self._pools[self._team1] += amount
             self._voted = self._team1
-            print(f"{self._team1} pool: {self._pools[self._team1]}")
+            #print(f"{self._team1} pool: {self._pools[self._team1]}")
         elif side == self._team2:
             self._pools[self._team2] += amount
             self._voted = self._team2
-            print(f"{self._team2} pool: {self._pools[self._team2]}")
+            #print(f"{self._team2} pool: {self._pools[self._team2]}")
 
         if user.has_money(amount):
             self._bets.append(user.place_bet(self, amount, side))
@@ -420,8 +437,7 @@ class Bet():
         if not (self.side()):
             join = " against "
         if self._resolution == "n/a":
-            return self.user().name() + " bet " + "$" + "{:.2f}".format(self.amount()) + " @ $" + "{:.2f}".format(
-                self.underlying().odds(self.side())) + join + str(self._side) + " wins"
+            return self.user().name() + " bet " + "$" + "{:.2f}".format(self.amount()) + join + str(self._side) + " wins"
         else:
             return self.user().name() + " " + self._resolution + " " + "$" + "{:.2f}".format(
                 self.winnings()) + " betting" + join + self.underlying()._description
@@ -434,8 +450,10 @@ class Bet():
 
         if self._resolution == "n/a":
             return self.user().name() + " bet " + "$" + "{:.2f}".format(self.amount())
-        else:
+        if self._resolution == "won":
             return name + " " + self._resolution + " " + "$" + "{:.2f}".format(self._won)
+        else:
+            return name + " " + self._resolution + " " + "$" + "{:.2f}".format(self._amount)
 
     def winnings(self):
         if self._resolution != "won":
@@ -503,6 +521,7 @@ class betting(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.autosave.start()
+        bot.loop.create_task(self.check_messages())
         #### PICKLE (object persistence)
         try:
             with open(PICKLE_FILENAME, 'rb') as handle:
@@ -543,6 +562,9 @@ class betting(commands.Cog):
     @commands.has_role("Manager")
     async def game(self, ctx, team1, team2):
 
+        # Create a set to keep track of which users have already clicked any button for this event
+        button_states = set()
+
         temp = self.bot.system.add_event(team1, team2)
         id = temp[0]
         send = temp[1]
@@ -552,9 +574,7 @@ class betting(commands.Cog):
         button2 = discord.ui.Button(custom_id=f"button-2-{id}", style=discord.ButtonStyle.primary,
                                     emoji=self.getEmoji(team2))
 
-        async def on_timeout():
-            await ctx.respond("You didn't bet in time!", ephermal=True)
-
+        #view = View(timeout=3600)
         view = View(timeout=3600)
         view.add_item(button1)
         view.add_item(button2)
@@ -562,14 +582,26 @@ class betting(commands.Cog):
         await ctx.respond(embed=send, view=view)
 
         async def callback1(interaction):
-            self.team = team1
-            await interaction.response.send_modal(
-                MyModal(title="betting", team=team1, id=id, betting_system=self.bot.system))
+            if interaction.user.id in button_states:
+                # The user has already clicked a button for this event
+                await interaction.response.send_message("You have already placed a bet for this event.", ephemeral=True)
+            else:
+                # Add the user to the set of users who have clicked a button for this event
+                button_states.add(interaction.user.id)
+                self.team = team1
+                await interaction.response.send_modal(
+                    MyModal(title="betting", team=team1, id=id, betting_system=self.bot.system))
 
         async def callback2(interaction):
-            self.team = team2
-            await interaction.response.send_modal(
-                MyModal(title="betting", team=team2, id=id, betting_system=self.bot.system))
+            if interaction.user.id in button_states:
+                # The user has already clicked a button for this event
+                await interaction.response.send_message("You have already placed a bet for this event.", ephemeral=True)
+            else:
+                # Add the user to the set of users who have clicked a button for this event
+                button_states.add(interaction.user.id)
+                self.team = team2
+                await interaction.response.send_modal(
+                    MyModal(title="betting", team=team2, id=id, betting_system=self.bot.system))
 
         button1.callback = callback1
         button2.callback = callback2
@@ -582,11 +614,11 @@ class betting(commands.Cog):
         await ctx.respond(self.bot.system.resolve_event(int(event_id), result))
 
     # Bet on an event
-    @discord.slash_command(aliases=["b"], usage="<eventId> <result (yes/no)> <amount>",
+    """@discord.slash_command(aliases=["b"], usage="<eventId> <result (yes/no)> <amount>",
                            help="Allows any user to bet on an ongoing event.\ne.g. bet 1 y 100.")
     async def bet(self, ctx, event_id, result, amount):
         await ctx.respond(wrap(self.bot.system.user_bet(int(event_id), ctx.author, result, float(amount))),
-                          ephemeral=True)
+                          ephemeral=True)"""
 
     # Lock an event
     @discord.slash_command(aliases=["lo"], usage="<eventId>",
@@ -605,7 +637,7 @@ class betting(commands.Cog):
     ################################################
     # See current money
     @discord.slash_command(aliases=["m"], usage="", help="Allows any user to see their current money supply.")
-    async def money(self, ctx):
+    async def balance(self, ctx):
         await ctx.respond(wrap(self.bot.system.print_money(ctx.author)))
 
     # Get daily money reward
@@ -711,6 +743,27 @@ class betting(commands.Cog):
             pickle.dump(self.bot.system, handle, protocol=pickle.HIGHEST_PROTOCOL)
         with open(PICKLE_FILENAME, 'rb') as handle:
             await channel.send(datetime.now(), file=discord.File(handle))
+
+    async def check_messages(self):
+        sent_users = set()  # Keep track of users who have been sent a message
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            # Check for messages sent in the last 10 minutes
+            for channel in self.bot.get_all_channels():
+                if isinstance(channel, discord.TextChannel):
+                    async for message in channel.history(limit=None):
+                        user = User.get_user(message.author.id)
+                        if (datetime.now(pytz.utc) - message.created_at).total_seconds() <= 600 and not message.author.bot and user not in sent_users:
+                            # Send a message to the user who sent the message
+                            try:
+                                user.addMoney()
+                            except:
+                                pass
+                            sent_users.add(user)
+
+            # Wait for 10 minutes before checking messages again
+            await asyncio.sleep(600)
+            sent_users.clear()
 
 
 def setup(bot):
