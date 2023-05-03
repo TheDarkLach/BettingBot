@@ -48,7 +48,7 @@ class signing(commands.Cog):
         role = ctx.guild.get_role(roleid)
         await user.add_roles(role)
 
-        channel = self.bot.get_channel(1096884884510887976) # change this !!
+        channel = self.bot.get_channel(710000067515514893) # change this !!
         await ctx.respond("Transaction completed!", ephemeral=True)
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
@@ -88,7 +88,7 @@ class signing(commands.Cog):
         role = ctx.guild.get_role(roleid)
         await user.remove_roles(role)
 
-        channel = self.bot.get_channel(1096884884510887976)  # change this !!
+        channel = self.bot.get_channel(710000067515514893)  # change this !!
         await ctx.respond("Transaction completed!", ephemeral=True)
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
