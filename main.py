@@ -26,7 +26,7 @@ async def on_ready():
 initial_extensions = (
     'betting',
     "signing",
-   # "events",
+    "events",
 )
 
 for extension in initial_extensions:

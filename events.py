@@ -1,36 +1,28 @@
-import discord
-import pytz
 from discord.ext import commands, tasks
-import datetime
-import asyncio
-import betting
 
+message_counts = {}
 
 
 class events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        bot.loop.create_task(self.check_messages())
+        #self.check_channel_task.start()
 
-    async def check_messages(self):
-        sent_users = set()  # Keep track of users who have been sent a message
+    """@tasks.loop(seconds=5)
+    async def check_channel_task(self):
         await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            # Check for messages sent in the last 10 minutes
-            for channel in self.bot.get_all_channels():
-                if isinstance(channel, discord.TextChannel):
-                    async for message in channel.history(limit=None):
-                        user = message.author
-                        if (datetime.datetime.now(pytz.utc) - message.created_at).total_seconds() <= 600 and not user.bot and user not in sent_users:
-                            # Send a message to the user who sent the message
-                            #await user.send("You have been active! Keep it up!")
-                            user.User.add_money()
-                            #print("added money to: " + str(user.id))
-                            sent_users.add(user)
+        channel = self.bot.get_channel(1103469454161105017)
+        if len(await channel.history(limit=2).flatten()) >= 2:
+            messages = await channel.history(limit=2).flatten()
+            await messages[1].delete()"""
 
-            # Wait for 10 minutes before checking messages again
-            await asyncio.sleep(10)
-            sent_users.clear()
+    @commands.Cog.listener()
+    async def on_message(self,message):
+        channel = self.bot.get_channel(1103469454161105017)
+        if message.channel == channel:
+            if len(await channel.history(limit=2).flatten()) >= 2:
+                messages = await channel.history(limit=2).flatten()
+                await messages[1].delete()
 
 
 def setup(bot):

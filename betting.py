@@ -6,10 +6,12 @@ import pytz
 from discord.ext import commands, tasks
 
 import configparser
-from datetime import timedelta, date, datetime
+from datetime import timedelta, date, datetime, time
 
 import pickle
 import os
+
+import time as t
 
 from discord.ui import View
 
@@ -45,7 +47,6 @@ class BettingSystem():
         self.MAX_BET = 100000
         self.MIN_BET = 1
 
-    # todo remove
     def clear(self):
         self._past_events = {}
         for key in self._users:
@@ -53,15 +54,15 @@ class BettingSystem():
             user._past_bets = []
         return "Cleared all historical data. PnL and money remains."
 
-    def add_event(self, team1, team2):
+    def add_event(self, team1, team2, desc):
         a = datetime.now()
-        b = a + timedelta(hours=1)
+        b = a + timedelta(hours=2)
         event = BetEvent(self.next_event_id(), team1, team2, description=team1 + " VS " + team2)
         self._curr_events[event._id] = event
-        embed = discord.Embed(title=event.information(), description=f"ID: {str(event._id)}", timestamp=b,
-                              color=0x00008b)
-        embed.set_footer(text="\u200b Ending: ")
-        return event._id, embed
+        embed = discord.Embed(title=event.information(), description=desc, timestamp=b, color=0x00008b)
+        #embed.add_field(name="\u200b", value=f"ID: {event._id}", inline=True)
+        embed.set_footer(text=f"ID: {event._id}\nEnding: ")
+        return event._id, embed, event
 
     def resolve_event(self, event_id, result):
         if not (event_id in self._curr_events):
@@ -222,6 +223,7 @@ def custom_format(td):
 
 class User():
     _users = []
+
     def __init__(self, name, userId):
         self._id = userId
         self._name = name
@@ -242,7 +244,6 @@ class User():
     def name(self):
         return self._name
 
-
     def rename(self, name):
         self._name = name
         return name + " was renamed successfully."
@@ -261,7 +262,6 @@ class User():
 
     def print_money(self):
         return self.name() + " has " + "$" + "{:.2f}".format(self.money()) + "."
-
 
     def list_bets(self):
         neg = ""
@@ -314,12 +314,12 @@ class User():
 
     def win_bet(self, amount, teamtotal, total):
         # amount is original bet amount, we should pass in team amount and total amount too and do math
-        #print(f"amount bet: {amount}")
+        # print(f"amount bet: {amount}")
         teamperc = float(teamtotal / amount)
-        #print(teamtotal, total)
-        #print(teamperc, amount)
+        # print(teamtotal, total)
+        # print(teamperc, amount)
         amount = int(total / teamperc)
-        #print(amount)
+        # print(amount)
 
         # print(teamperc, amount)
         self._money += amount
@@ -356,11 +356,11 @@ class BetEvent():
         if side == self._team1:
             self._pools[self._team1] += amount
             self._voted = self._team1
-            #print(f"{self._team1} pool: {self._pools[self._team1]}")
+            # print(f"{self._team1} pool: {self._pools[self._team1]}")
         elif side == self._team2:
             self._pools[self._team2] += amount
             self._voted = self._team2
-            #print(f"{self._team2} pool: {self._pools[self._team2]}")
+            # print(f"{self._team2} pool: {self._pools[self._team2]}")
 
         if user.has_money(amount):
             self._bets.append(user.place_bet(self, amount, side))
@@ -374,7 +374,7 @@ class BetEvent():
         self._result = winning_side
         # print(winning_side)
         for bet in self._bets:
-            bet.resolve(winning_side, teamtotal=self._pools[bet.side()], #self._voted
+            bet.resolve(winning_side, teamtotal=self._pools[bet.side()],  # self._voted
                         total=self._pools[self._team1] + self._pools[self._team2])
             bet.user().archive_bet(bet._underlying._id)
 
@@ -394,7 +394,7 @@ class BetEvent():
         locked = ""
         if self.locked() and not (self.resolved()):
             locked = " (locked)"
-        output += self._team1 + " VS " + self._team2 + locked + "\n"
+        output += self._team1.title() + " VS " + self._team2.title() + locked + "\n"
         if self.resolved():
             output += "Result: " + str(self._result).upper() + "\n"
         if mention:
@@ -437,7 +437,8 @@ class Bet():
         if not (self.side()):
             join = " against "
         if self._resolution == "n/a":
-            return self.user().name() + " bet " + "$" + "{:.2f}".format(self.amount()) + join + str(self._side) + " wins"
+            return self.user().name() + " bet " + "$" + "{:.2f}".format(self.amount()) + join + str(
+                self._side) + " wins"
         else:
             return self.user().name() + " " + self._resolution + " " + "$" + "{:.2f}".format(
                 self.winnings()) + " betting" + join + self.underlying()._description
@@ -468,7 +469,7 @@ class Bet():
         if outcome == self.side():
             self._resolution = "won"
             self.math(self.amount(), teamtotal, total)
-            #print(f"passing in {self.amount()} and {teamtotal} to win_bet")
+            # print(f"passing in {self.amount()} and {teamtotal} to win_bet")
             self._user.win_bet(self.amount(), teamtotal, total)
         else:
             self._resolution = "lost"
@@ -560,26 +561,44 @@ class betting(commands.Cog):
     @discord.slash_command(aliases=["g"], usage="<odds> <team1> <team2>",
                            help="Allows a Manager to create an event for users to bet on.\ne.g. game 2 outlaws highlanders")
     @commands.has_role("Manager")
-    async def game(self, ctx, team1, team2):
+    async def game(self, ctx, team1, team2, description):
 
         # Create a set to keep track of which users have already clicked any button for this event
         button_states = set()
 
-        temp = self.bot.system.add_event(team1, team2)
+        temp = self.bot.system.add_event(team1, team2, description)
         id = temp[0]
         send = temp[1]
+        event = temp[2]
 
         button1 = discord.ui.Button(custom_id=f"button-1-{id}", style=discord.ButtonStyle.primary,
                                     emoji=self.getEmoji(team1))
         button2 = discord.ui.Button(custom_id=f"button-2-{id}", style=discord.ButtonStyle.primary,
                                     emoji=self.getEmoji(team2))
 
-        #view = View(timeout=3600)
-        view = View(timeout=3600)
+        view = View(timeout=7200)
         view.add_item(button1)
         view.add_item(button2)
 
-        await ctx.respond(embed=send, view=view)
+        team1_pool = event._pools[team1]
+        team2_pool = event._pools[team2]
+
+        await ctx.respond("Event set up!",ephemeral=True)
+        message = await ctx.channel.send(f"{team1.title()} Pool: {team1_pool}\n{team2.title()} Pool: {team2_pool}")
+        await ctx.channel.send(embed=send, view=view)
+
+        async def update_pools():
+            start_time = t.time()
+            while t.time() - start_time < 7200:
+                team1_pool = event._pools[team1]
+                team2_pool = event._pools[team2]
+
+                newmessage = await ctx.channel.fetch_message(message.id)
+                await newmessage.edit(content=f"{team1.title()} Pool: {team1_pool}\n{team2.title()} Pool: {team2_pool}")
+
+                await asyncio.sleep(5)
+
+        asyncio.ensure_future(update_pools())
 
         async def callback1(interaction):
             if interaction.user.id in button_states:
@@ -590,7 +609,7 @@ class betting(commands.Cog):
                 button_states.add(interaction.user.id)
                 self.team = team1
                 await interaction.response.send_modal(
-                    MyModal(title="betting", team=team1, id=id, betting_system=self.bot.system))
+                    MyModal(title="Bet", team=team1, id=id, betting_system=self.bot.system))
 
         async def callback2(interaction):
             if interaction.user.id in button_states:
@@ -601,10 +620,11 @@ class betting(commands.Cog):
                 button_states.add(interaction.user.id)
                 self.team = team2
                 await interaction.response.send_modal(
-                    MyModal(title="betting", team=team2, id=id, betting_system=self.bot.system))
+                    MyModal(title="Bet", team=team2, id=id, betting_system=self.bot.system))
 
         button1.callback = callback1
         button2.callback = callback2
+
 
     # Resolve event
     @discord.slash_command(aliases=["r"], usage="<eventId> <result",
@@ -753,7 +773,8 @@ class betting(commands.Cog):
                 if isinstance(channel, discord.TextChannel):
                     async for message in channel.history(limit=None):
                         user = User.get_user(message.author.id)
-                        if (datetime.now(pytz.utc) - message.created_at).total_seconds() <= 600 and not message.author.bot and user not in sent_users:
+                        if (datetime.now(
+                                pytz.utc) - message.created_at).total_seconds() <= 600 and not message.author.bot and user not in sent_users:
                             # Send a message to the user who sent the message
                             try:
                                 user.addMoney()
