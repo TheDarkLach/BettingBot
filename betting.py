@@ -42,7 +42,7 @@ class BettingSystem():
         self._curr_events = {}
         self._past_events = {}
         self._eventIds = 0
-        self._valid_yes = ["outlaws", "highlanders", "whalers", "grizzlies", "blues", "rage"]
+        self._valid_yes = ["outlaws", "redwolves", "bandits", "grizzlies", "blues", "rage", "spartans", "hitmen"]
         self._invalid_side_message = "result must be one of " + str(self._valid_yes)
         self.MAX_BET = 100000
         self.MIN_BET = 1
@@ -68,6 +68,7 @@ class BettingSystem():
         if not (event_id in self._curr_events):
             return "Invalid eventId, try using <ongoing> to see current events."
 
+        event = self._curr_events.pop(event_id)
         event = self._curr_events.pop(event_id)
         event.payout(result)
         self._past_events[event_id] = event
@@ -534,18 +535,22 @@ class betting(commands.Cog):
 
     def getEmoji(self, team):
         team = team.lower()
-        if team == "outlaws":
-            return "<:VAN:1097742618441560075>"
-        if team == "highlanders":
-            return "<:HFX:1097742653103288430>"
-        if team == "blues":
-            return "<:SAS:1097742592814362664>"
-        if team == "whalers":
-            return "<:HFD:1097742654151868587>"
-        if team == "rage":
-            return "<:CAS:1097742655837974580>"
         if team == "grizzlies":
-            return "<:ANC:1097742565190668338>"
+            return "<:ANC:974426032591487046>"
+        if team == "bandits":
+            return "<:HOU:710972511558303914>"
+        if team == "outlaws":
+            return "<:VAN:761247825795219466>"
+        if team == "blues":
+            return "<:SAS:1111371453544288348>"
+        if team == "spartans":
+            return "<:SJS:1111376173621055629>"
+        if team == "redwolves":
+            return "<:WSH:1111392076358226100>"
+        if team == "rage":
+            return "<:CAS:1084273779657687101>"
+        if team == "hitmen":
+            return "<:SUR:819294775999725589>"
         return "fuck if i know"
 
     ################################################
