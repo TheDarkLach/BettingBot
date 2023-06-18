@@ -70,7 +70,6 @@ class BettingSystem():
             return "Invalid eventId, try using <ongoing> to see current events."
 
         event = self._curr_events.pop(event_id)
-        event = self._curr_events.pop(event_id)
         event.payout(result)
         self._past_events[event_id] = event
         return event.information(True)
@@ -642,8 +641,10 @@ class betting(commands.Cog):
     @discord.slash_command(aliases=["r"], usage="<eventId> <result",
                            help="Allows a Manager to resolve an event that users have bet on.\ne.g. resolve 1 outlaws")
     @commands.has_any_role("Manager","Ownership")
-    async def resolve(self, ctx, event_id, result):
-        await ctx.respond(self.bot.system.resolve_event(int(event_id), result))
+    @option("result", description="Choose the team",
+            choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
+    async def resolve(self, ctx, event_id: int, result):
+        await ctx.respond(self.bot.system.resolve_event(event_id, result))
 
     # Bet on an event
     """@discord.slash_command(aliases=["b"], usage="<eventId> <result (yes/no)> <amount>",
