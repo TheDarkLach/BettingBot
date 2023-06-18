@@ -49,10 +49,9 @@ class signing(commands.Cog):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0'
         }
 
-        player = player.replace('<', '').replace('>', '').replace('@', '')
+
         user = await ctx.guild.fetch_member(player)
         #await user.send(f"You have been signed by {team.capitalize()}")
-        player = user.display_name
         role = ctx.guild.get_role(roleid)
         await user.add_roles(role)
 
@@ -89,10 +88,9 @@ class signing(commands.Cog):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0'
         }
 
-        player = player.replace('<', '').replace('>', '').replace('@', '')
+
         user = await ctx.guild.fetch_member(player)
         # await user.send(f"You have been signed by {team.capitalize()}")
-        player = user.display_name
         role = ctx.guild.get_role(roleid)
         await user.remove_roles(role)
 
