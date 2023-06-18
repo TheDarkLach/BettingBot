@@ -3,6 +3,7 @@ import asyncio
 
 import discord
 import pytz
+from discord import option
 from discord.ext import commands, tasks
 
 import configparser
@@ -568,6 +569,10 @@ class betting(commands.Cog):
     @discord.slash_command(aliases=["g"], usage="<odds> <team1> <team2>",
                            help="Allows a Manager to create an event for users to bet on.\ne.g. game 2 outlaws highlanders")
     @commands.has_any_role("Manager","Ownership")
+    @option("team1", description="Choose the team",
+            choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
+    @option("team2", description="Choose the team",
+            choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def game(self, ctx, team1, team2, description):
 
         # Create a set to keep track of which users have already clicked any button for this event

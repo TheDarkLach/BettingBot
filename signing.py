@@ -11,23 +11,23 @@ import requests
 def getData(msg):
     team = msg.lower()
     if team == "grizzlies":
-        return 709905185224523888
+        return "<:ANC:974426032591487046>"
     if team == "bandits":
-        return 1111389039489187980
+        return "<:HOU:710972511558303914>"
     if team == "outlaws":
-        return 974093019085156362
+        return "<:VAN:761247825795219466>"
     if team == "blues":
-        return 709905185224523891
+        return "<:SAS:1111371453544288348>"
     if team == "spartans":
-        return 741813007549595750
+        return "<:SJS:1111376173621055629>"
     if team == "redwolves":
-        return 1111392124961816599
+        return "<:WSH:1111392076358226100>"
     if team == "rage":
-        return 709905185224523889
+        return "<:CAS:1084273779657687101>"
     if team == "hitmen":
-        return 1111377574023676064
+        return "<:SUR:819294775999725589>"
     if team == "storm":
-        return 1010589482032046332
+        return "<:ORL:761247932598845480>"
     return "fuck if i know"
 
 
@@ -41,9 +41,9 @@ class signing(commands.Cog):
             choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def sign(self, ctx, player, team):
 
-        roleid = getData(team)
+        emoji = getData(team)
 
-        embed = discord.Embed(title="Transaction", color=0x00008b)
+        embed = discord.Embed(title=f"{emoji} Transaction", color=0x00008b)
         embed.add_field(name="**{} Sign:**".format(team.capitalize()),value = player, inline=False)
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0'
@@ -54,6 +54,7 @@ class signing(commands.Cog):
         #await user.send(f"You have been signed by {team.capitalize()}")
         #role = ctx.guild.get_role(roleid)
         #await user.add_roles(role)
+        await ctx.respond("One second!", ephemeral=True)
 
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
@@ -72,7 +73,7 @@ class signing(commands.Cog):
 
         embed.set_thumbnail(url=url)
 
-        await ctx.respond(embed=embed)
+        await ctx.channel.send(embed=embed)
 
     @discord.slash_command(description="release a player from a team")
     @has_permissions(manage_roles=True)
@@ -80,9 +81,9 @@ class signing(commands.Cog):
             choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def release(self, ctx, player, team):
 
-        roleid = getData(team)
+        emoji = getData(team)
 
-        embed = discord.Embed(title="Transaction", color=0x00008b)
+        embed = discord.Embed(title=f"{emoji} Transaction", color=0x00008b)
         embed.add_field(name="**{} Release:**".format(team.capitalize()), value=player, inline=False)
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0'
@@ -93,6 +94,7 @@ class signing(commands.Cog):
         # await user.send(f"You have been signed by {team.capitalize()}")
         #role = ctx.guild.get_role(roleid)
         #await user.remove_roles(role)
+        await ctx.respond("One second!", ephemeral=True)
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
 
@@ -110,7 +112,7 @@ class signing(commands.Cog):
 
         embed.set_thumbnail(url=url)
 
-        await ctx.respond(embed=embed)
+        await ctx.channel.send(embed=embed)
 
 
 
