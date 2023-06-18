@@ -36,7 +36,7 @@ class signing(commands.Cog):
         self.bot = bot
 
     @discord.slash_command(description="sign a player to a team")
-    @has_permissions(manage_roles=True)
+    @commands.has_any_role("Manager","Ownership")
     @option("team", description="Choose the team",
             choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def sign(self, ctx, player, team):
@@ -76,7 +76,7 @@ class signing(commands.Cog):
         await ctx.channel.send(embed=embed)
 
     @discord.slash_command(description="release a player from a team")
-    @has_permissions(manage_roles=True)
+    @commands.has_any_role("Manager","Ownership")
     @option("team", description="Choose the team",
             choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def release(self, ctx, player, team):
