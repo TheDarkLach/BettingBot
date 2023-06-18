@@ -50,10 +50,10 @@ class signing(commands.Cog):
         }
 
 
-        user = await ctx.guild.fetch_member(player)
+        #user = await ctx.guild.fetch_member(player)
         #await user.send(f"You have been signed by {team.capitalize()}")
-        role = ctx.guild.get_role(roleid)
-        await user.add_roles(role)
+        #role = ctx.guild.get_role(roleid)
+        #await user.add_roles(role)
 
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
@@ -89,10 +89,10 @@ class signing(commands.Cog):
         }
 
 
-        user = await ctx.guild.fetch_member(player)
+        #user = await ctx.guild.fetch_member(player)
         # await user.send(f"You have been signed by {team.capitalize()}")
-        role = ctx.guild.get_role(roleid)
-        await user.remove_roles(role)
+        #role = ctx.guild.get_role(roleid)
+        #await user.remove_roles(role)
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
 
