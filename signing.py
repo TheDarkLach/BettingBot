@@ -1,28 +1,34 @@
 from io import BytesIO
 import shutil
+
+from discord import option
 from discord.ext import commands
 from discord.ext.commands import has_permissions
 import discord
 import requests
 
-global roleid
-
 
 def getData(msg):
-    msg = msg.lower()
-    global roleid
-    if msg == "grizzlies":
-        roleid = 709905185224523888
-    elif msg == "highlanders":
-        roleid = 1010589482032046332
-    elif msg == "blues":
-        roleid = 709905185224523891
-    elif msg == "rage":
-        roleid = 709905185224523889
-    elif msg == "whalers":
-        roleid = 741813007549595750
-    elif msg == "outlaws":
-        roleid = 974093019085156362
+    team = msg.lower()
+    if team == "grizzlies":
+        return 709905185224523888
+    if team == "bandits":
+        return 1111389039489187980
+    if team == "outlaws":
+        return 974093019085156362
+    if team == "blues":
+        return 709905185224523891
+    if team == "spartans":
+        return 741813007549595750
+    if team == "redwolves":
+        return 1111392124961816599
+    if team == "rage":
+        return 709905185224523889
+    if team == "hitmen":
+        return 1111377574023676064
+    if team == "storm":
+        return 1010589482032046332
+    return "fuck if i know"
 
 
 class signing(commands.Cog):
@@ -31,9 +37,11 @@ class signing(commands.Cog):
 
     @discord.slash_command(description="sign a player to a team")
     @has_permissions(manage_roles=True)
+    @option("team", description="Choose the team",
+            choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def sign(self, ctx, player, team):
 
-        getData(team)
+        roleid = getData(team)
 
         embed = discord.Embed(title="Transaction", color=0x00008b)
         embed.add_field(name="**{} Sign:**".format(team.capitalize()),value = player, inline=False)
@@ -48,8 +56,6 @@ class signing(commands.Cog):
         role = ctx.guild.get_role(roleid)
         await user.add_roles(role)
 
-        channel = self.bot.get_channel(710000067515514893) # change this !!
-        await ctx.respond("Transaction completed!", ephemeral=True)
 
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
 
@@ -67,13 +73,15 @@ class signing(commands.Cog):
 
         embed.set_thumbnail(url=url)
 
-        await channel.send(embed=embed)
+        await ctx.respond(embed=embed)
 
     @discord.slash_command(description="release a player from a team")
     @has_permissions(manage_roles=True)
+    @option("team", description="Choose the team",
+            choices=["Grizzlies", "Bandits", "Outlaws", "Blues", "Spartans", "Redwolves", "Hitmen", "Storm"])
     async def release(self, ctx, player, team):
 
-        getData(team)
+        roleid = getData(team)
 
         embed = discord.Embed(title="Transaction", color=0x00008b)
         embed.add_field(name="**{} Release:**".format(team.capitalize()), value=player, inline=False)
@@ -88,9 +96,6 @@ class signing(commands.Cog):
         role = ctx.guild.get_role(roleid)
         await user.remove_roles(role)
 
-        channel = self.bot.get_channel(710000067515514893)  # change this !!
-        await ctx.respond("Transaction completed!", ephemeral=True)
-
         url = "https://minotar.net/armor/bust/" + player + "/100.png"
 
         response = requests.get(url, headers=headers, stream=True)
@@ -107,7 +112,7 @@ class signing(commands.Cog):
 
         embed.set_thumbnail(url=url)
 
-        await channel.send(embed=embed)
+        await ctx.respond(embed=embed)
 
 
 
