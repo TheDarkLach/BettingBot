@@ -551,6 +551,8 @@ class betting(commands.Cog):
             return "<:CAS:1084273779657687101>"
         if team == "hitmen":
             return "<:SUR:819294775999725589>"
+        if team == "storm":
+            return "<:ORL:761247932598845480>"
         return "fuck if i know"
 
     ################################################
@@ -565,8 +567,7 @@ class betting(commands.Cog):
 
     @discord.slash_command(aliases=["g"], usage="<odds> <team1> <team2>",
                            help="Allows a Manager to create an event for users to bet on.\ne.g. game 2 outlaws highlanders")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def game(self, ctx, team1, team2, description):
 
         # Create a set to keep track of which users have already clicked any button for this event
@@ -635,8 +636,7 @@ class betting(commands.Cog):
     # Resolve event
     @discord.slash_command(aliases=["r"], usage="<eventId> <result",
                            help="Allows a Manager to resolve an event that users have bet on.\ne.g. resolve 1 outlaws")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def resolve(self, ctx, event_id, result):
         await ctx.respond(self.bot.system.resolve_event(int(event_id), result))
 
@@ -650,16 +650,14 @@ class betting(commands.Cog):
     # Lock an event
     @discord.slash_command(aliases=["lo"], usage="<eventId>",
                            help="Allows a Manager to lock a current event.\ne.g. lock 11.")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def lock(self, ctx, event_id):
         await ctx.respond(wrap(discord.system.lock_event(int(event_id))))
 
     # Unlock an event
     @discord.slash_command(aliases=["unlo"], usage="<eventId>",
                            help="Allows a Manager to unlock a current event.\ne.g. unlock 11.")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def unlock(self, ctx, event_id):
         await ctx.respond(wrap(self.bot.system.unlock_event(int(event_id))))
 
@@ -697,8 +695,7 @@ class betting(commands.Cog):
     # cancel a user's current bets for a particular event
     @discord.slash_command(aliases=["can"], usage="<@user> <event_id>",
                            help="Allows a Manager to cancel someone's bets.")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def cancel(self, ctx, user, event_id):
         user = user.replace('<', '').replace('>', '').replace('@', '')
         await ctx.respond(wrap(self.bot.system.cancel_bet(int(user), int(event_id))))
@@ -730,8 +727,7 @@ class betting(commands.Cog):
     # Load user data (serialized)
     @discord.slash_command(aliases=["reload"], usage="",
                            help="Load current system state from file. Must be attached with the command and named " + PICKLE_FILENAME + ".")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def load(self, ctx):
         if not (ctx.message.attachments):
             await ctx.respond(wrap(ctx.author.display_name + " loading requires an attachment."))
@@ -755,16 +751,14 @@ class betting(commands.Cog):
     # Update max bet
     @discord.slash_command(aliases=["max"], usage="<eventId>",
                            help="Allows a Manager to update the maximum betting amount.")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def max_bet(self, ctx, maxbet):
         await ctx.respond(wrap(self.bot.system.update_max_bet(int(maxbet))))
 
     # Clear history
     @discord.slash_command(aliases=["clear_past"], usage="",
                            help="Allows a Manager to clear past events (lowers save space).")
-    @commands.has_role("Manager")
-    @commands.has_role("Ownership")
+    @commands.has_any_role("Manager","Ownership")
     async def clear(self, ctx):
         await ctx.respond(wrap(self.bot.system.clear()))
 
