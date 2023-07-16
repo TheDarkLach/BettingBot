@@ -22,5 +22,6 @@ basic commands:
 /daily
 
 System that gives players coins every 10 minutes if they talk in the server
+
 Probably some other stuff im forgetting
 
